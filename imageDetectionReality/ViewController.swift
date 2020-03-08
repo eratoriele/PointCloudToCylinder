@@ -23,8 +23,10 @@ class ViewController: UIViewController {
     
     // Array of Points
     var pointCloud = [Point]()
-    
+    var chosenPointCloud = [Point]()
+
     let pointtouchRange:CGFloat = 100
+    let chosenCloudLimit = 150
     
     override func viewDidLoad() {
         super.viewDidLoad()
@@ -54,6 +56,7 @@ class ViewController: UIViewController {
         
         //arView.addGestureRecognizer(UIRotationGestureRecognizer(target: self,
          //                                                       action: #selector(handleTap(recognizer:))))
+        
     }
     
     override func touchesMoved(_ touches: Set<UITouch>, with event: UIEvent?) {
@@ -63,9 +66,7 @@ class ViewController: UIViewController {
         
         // Get all feature points in the current frame
         let fp = self.arView.session.currentFrame?.rawFeaturePoints?.points
-        let count = fp!.count
-        
-        var chosenPointCloud = [Point]()
+        guard let count = fp?.count else { return }
         
         // Create a material
         let material = SimpleMaterial(color: SimpleMaterial.Color.red, isMetallic: false)
@@ -84,15 +85,19 @@ class ViewController: UIViewController {
                 anchorEntity.addChild(ballModel)
                 ballModel.position = point
                 
-                chosenPointCloud.append(Point(x: point.x, y: point.y, z: point.z))
+                self.chosenPointCloud.append(Point(x: point.x, y: point.y, z: point.z))
             }
         }
         
         arView.scene.addAnchor(anchorEntity)
-        if (chosenPointCloud.count > 2) {
-            getCylinderData(pointCloud: chosenPointCloud)
+        if (self.chosenPointCloud.count > chosenCloudLimit) {
+            getCylinderData(pointCloud: self.chosenPointCloud)
+        }
+        else {
+            print("Not Enough points. Current points: ", self.chosenPointCloud.count, "Needed: ", chosenCloudLimit)
         }
     }
+    
     /*
     func removeDuplicates(arr: [Point]) -> [Point] {
         var uniqueArr = [Point]()
@@ -161,10 +166,12 @@ class ViewController: UIViewController {
         anchorEntity.addChild(model)
         
         model.position.x = center.x
-        model.position.y = center.y + (pointmax.y - pointmin.y) / 2
+        model.position.y = center.y + ((pointmax.y - pointmin.y) / 2)
         model.position.z = center.z
         
         arView.scene.addAnchor(anchorEntity)
+        
+        chosenPointCloud.removeAll()
     }
 }
 
