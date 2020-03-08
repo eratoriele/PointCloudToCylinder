@@ -10,18 +10,21 @@ import UIKit
 import RealityKit
 import ARKit
 
+// The points in the point coud
+struct Point {
+    var x:Float = 0
+    var y:Float = 0
+    var z:Float = 0
+}
+
 class ViewController: UIViewController {
     
     @IBOutlet var arView: ARView!
     
-    // The points in the point coud
-    struct Point {
-        var x = float_t.init(bitPattern: 0)
-        var y = float_t.init(bitPattern: 0)
-        var z = float_t.init(bitPattern: 0)
-    }
     // Array of Points
     var pointCloud = [Point]()
+    
+    let pointtouchRange:CGFloat = 100
     
     override func viewDidLoad() {
         super.viewDidLoad()
@@ -34,32 +37,87 @@ class ViewController: UIViewController {
         configuration.environmentTexturing = .automatic
         configuration.isLightEstimationEnabled = true
         
-        guard let trackedImages = ARReferenceImage.referenceImages(inGroupNamed: "trackImages", bundle: Bundle.main) else {
+        /*guard let trackedImages = ARReferenceImage.referenceImages(inGroupNamed: "trackImages", bundle: Bundle.main) else {
             return
-        }
+        }*/
 
-        configuration.detectionImages = trackedImages
+        //configuration.detectionImages = trackedImages
         configuration.maximumNumberOfTrackedImages = 1
         
         arView.session.run(configuration)
         
         arView.debugOptions = [
-            .showFeaturePoints,
-            .showAnchorOrigins,
-            .showWorldOrigin
+            //.showFeaturePoints,
+            //.showAnchorOrigins,
+            //.showWorldOrigin
         ]
         
-        arView.addGestureRecognizer(UITapGestureRecognizer(target: self,
-                                                           action: #selector(handleTap(recognizer:))))
-        
+        //arView.addGestureRecognizer(UIRotationGestureRecognizer(target: self,
+         //                                                       action: #selector(handleTap(recognizer:))))
     }
     
-    @objc
-    func handleTap(recognizer: UITapGestureRecognizer) {
-        var pointmin = Point(x: float_t(UInt32.min), y: float_t(UInt32.min), z: float_t(UInt32.min))
-        var pointmax = Point(x: float_t(UInt32.max), y: float_t(UInt32.max), z: float_t(UInt32.max))
+    override func touchesMoved(_ touches: Set<UITouch>, with event: UIEvent?) {
         
-        for i in 0...pointCloud.count {
+        guard let touch = touches.first else { return }
+        let currentPoint = touch.location(in: arView)
+        
+        // Get all feature points in the current frame
+        let fp = self.arView.session.currentFrame?.rawFeaturePoints?.points
+        let count = fp!.count
+        
+        var chosenPointCloud = [Point]()
+        
+        // Create a material
+        let material = SimpleMaterial(color: SimpleMaterial.Color.red, isMetallic: false)
+        
+        let anchorEntity = AnchorEntity()
+        // Loop over them and check if any exist near our touch location
+        // If a point exists in our range, let's draw a sphere at that feature point
+        for i in 0..<count {
+            let point = vector3(fp![i].x, fp![i].y, fp![i].z)
+            let projection = arView.project(point)
+            if (projection!.x < (currentPoint.x + pointtouchRange) && projection!.x > (currentPoint.x - pointtouchRange) &&
+                projection!.y < (currentPoint.y + pointtouchRange) && projection!.y > (currentPoint.y - pointtouchRange) ) {
+                let ballShape = MeshResource.generateSphere(radius: 0.001)
+                let ballModel = ModelEntity(mesh: ballShape, materials: [material])
+                
+                anchorEntity.addChild(ballModel)
+                ballModel.position = point
+                
+                chosenPointCloud.append(Point(x: point.x, y: point.y, z: point.z))
+            }
+        }
+        
+        arView.scene.addAnchor(anchorEntity)
+        if (chosenPointCloud.count > 2) {
+            getCylinderData(pointCloud: chosenPointCloud)
+        }
+    }
+    /*
+    func removeDuplicates(arr: [Point]) -> [Point] {
+        var uniqueArr = [Point]()
+        
+        for i in 0..<arr.count {
+            if !uniqueArr.contains(where: { (poi) -> Bool in
+                if (poi.x == arr[i].x && poi.y == arr[i].y && poi.z == arr[i].z) {
+                    return true
+                }
+                return false
+            }) {
+                uniqueArr.append(Point(x: arr[i].x, y: arr[i].y, z: arr[i].z))
+            }
+            print("Point ", i, " of ", arr.count, " has been placed. ", uniqueArr.count)
+        }
+        
+        return uniqueArr
+    }*/
+    
+    func getCylinderData(pointCloud: [Point]) {
+        
+        var pointmin = pointCloud[0]
+        var pointmax = pointCloud[0]
+        
+        for i in 1...pointCloud.count - 1 {
             // Get the minimum corner
             pointmin.x = float_t.minimum(pointmin.x, pointCloud[i].x)
             pointmin.y = float_t.minimum(pointmin.y, pointCloud[i].y)
@@ -76,55 +134,49 @@ class ViewController: UIViewController {
         let b = Point(x: pointmin.x, y: pointmin.y, z: pointmax.z)
         let c = Point(x: pointmax.x, y: pointmin.y, z: pointmax.z)
         let d = Point(x: pointmax.x, y: pointmin.y, z: pointmin.z)
-        let e = Point(x: pointmax.x, y: pointmax.y, z: pointmax.z)
-        let f = Point(x: pointmin.x, y: pointmax.y, z: pointmax.z)
-        let g = Point(x: pointmin.x, y: pointmax.y, z: pointmin.z)
-        let h = Point(x: pointmax.x, y: pointmax.y, z: pointmin.z)
+        let _ = Point(x: pointmax.x, y: pointmax.y, z: pointmax.z)
+        let _ = Point(x: pointmin.x, y: pointmax.y, z: pointmax.z)
+        let _ = Point(x: pointmin.x, y: pointmax.y, z: pointmin.z)
+        let _ = Point(x: pointmax.x, y: pointmax.y, z: pointmin.z)
         
-        //Cylinder axis line going through centerPointOfCylinder and centerOfAPlane point
-        var center = Point(x: (pointmax.x + pointmin.x) / 2,
-                           y: (pointmax.y + pointmin.y) / 2,
+        // center of the circle on the bottom side
+        let center = Point(x: (pointmax.x + pointmin.x) / 2,
+                           y: pointmin.y,
                            z: (pointmax.z + pointmin.z) / 2);
         
-        var centerPointOfAPlane = Point(x: (e.x + g.x) / 2,
-                                        y: (e.y + g.y) / 2,
-                                        z: (e.z + g.z) / 2);
-        
-        var centerPointOfOppPlane = Point(x: (a.x + c.x) / 2,
-                                          y: (a.y + c.y) / 2,
-                                          z: (a.z + c.z) / 2);
-        
         //Take max diagonal from plane
-        var diameter = float_t.maximum(sqrtf((a.x - c.x)*(a.x - c.x) + (a.y - c.y)*(a.y - c.y) + (a.z - c.z)*(a.z - c.z)), sqrtf((b.x - d.x)*(b.x - d.x) + (b.y - d.y)*(b.y - d.y) + (b.z - d.z)*(b.z - d.z)))
+        let radius = float_t.maximum(sqrtf((a.x - c.x)*(a.x - c.x) + (a.y - c.y)*(a.y - c.y)), sqrtf((b.x - d.x)*(b.x - d.x) + (b.y - d.y)*(b.y - d.y)))
         
-        var height = abs(pointmax.y - pointmin.y)
+        let height = abs(pointmax.y - pointmin.y)
+
+        print("Center: ", center, "\nDiameter: ", radius, "\nHeight: ", height, "\nMinMax: ", pointmin, pointmax, pointCloud.count)
         
-        // Why isnt there a cylinder Mesh????
-        //let mesh = MeshResource.generatebox
+        //let mesh = MeshResource.generateBox(width: radius, height: height, depth: radius)
+        let material = SimpleMaterial(color: SimpleMaterial.Color.green.withAlphaComponent(0.7), isMetallic: false)
+        let mesh = MeshResource.generateBox(width: radius, height: height, depth: radius)
+
+        let model = ModelEntity(mesh: mesh, materials: [material])
+        
+        let anchorEntity = AnchorEntity()
+        anchorEntity.addChild(model)
+        
+        model.position.x = center.x
+        model.position.y = center.y + (pointmax.y - pointmin.y) / 2
+        model.position.z = center.z
+        
+        arView.scene.addAnchor(anchorEntity)
     }
 }
 
 
 extension ViewController: ARSessionDelegate {
+    /*
     func session(_ session: ARSession, didUpdate frame: ARFrame) {
 
         for vect in frame.rawFeaturePoints?.points ?? [] {
             
-            let tempPoint = Point(x: vect.x, y: vect.y, z: vect.z)
-            pointCloud.append(tempPoint)
-            
-            // If the point is not already in the array
-            if pointCloud.contains(where: { (poi) -> Bool in
-                if poi.x == tempPoint.x && poi.y == tempPoint.y && poi.z == tempPoint.z {
-                    return false
-                }
-                else {
-                    return true
-                }
-            }) {
-                pointCloud.append(tempPoint)
-            }
+            pointCloud.append(Point(x: vect.x, y: vect.y, z: vect.z))
         }
         
-    }
+    }*/
 }
