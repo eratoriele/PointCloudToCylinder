@@ -156,8 +156,13 @@ class ViewController: UIViewController {
 
         print("Center: ", center, "\nDiameter: ", radius, "\nHeight: ", height, "\nMinMax: ", pointmin, pointmax, pointCloud.count)
         
-        //let mesh = MeshResource.generateBox(width: radius, height: height, depth: radius)
-        let material = SimpleMaterial(color: SimpleMaterial.Color.green.withAlphaComponent(0.7), isMetallic: false)
+        let material = SimpleMaterial(color: SimpleMaterial.Color.red.withAlphaComponent(0.7), isMetallic: false)
+        /*
+        material.baseColor = try! MaterialColorParameter.texture(TextureResource.load(named: "marker.png"))
+        material.metallic = MaterialScalarParameter(floatLiteral: 0.9)
+        material.roughness = MaterialScalarParameter(floatLiteral: 0.1)
+        material.tintColor = UIColor.yellow
+        */
         let mesh = MeshResource.generateBox(width: radius, height: height, depth: radius)
 
         let model = ModelEntity(mesh: mesh, materials: [material])
